@@ -501,6 +501,55 @@ fn paused_indexer_cannot_record_tagged_or_structured_events() {
 }
 
 #[test]
+fn paused_contract_rejects_tagged_events() {
+    let env = Env::default();
+    let (contract_id, admin, indexer) = setup(&env);
+    let client = SoroScanCoreClient::new(&env, &contract_id);
+    client.pause(&admin);
+
+    let target = Address::generate(&env);
+    let payload_hash = BytesN::from_array(&env, &[0u8; 32]);
+    let mut tags = Vec::new(&env);
+    tags.push_back(symbol_short!("hot"));
+    let before = event_count(&env);
+
+    assert_eq!(
+        client.try_record_tagged_event(
+            &indexer,
+            &target,
+            &symbol_short!("trade"),
+            &payload_hash,
+            &tags,
+        ),
+        Err(Ok(ContractError::ContractPaused))
+    );
+    assert_eq!(event_count(&env), before);
+}
+
+#[test]
+fn unpaused_contract_allows_tagged_events() {
+    let env = Env::default();
+    let (contract_id, admin, indexer) = setup(&env);
+    let client = SoroScanCoreClient::new(&env, &contract_id);
+    client.pause(&admin);
+    client.unpause(&admin);
+
+    let target = Address::generate(&env);
+    let payload_hash = BytesN::from_array(&env, &[0u8; 32]);
+    let mut tags = Vec::new(&env);
+    tags.push_back(symbol_short!("hot"));
+
+    let result = client.try_record_tagged_event(
+        &indexer,
+        &target,
+        &symbol_short!("trade"),
+        &payload_hash,
+        &tags,
+    );
+    assert_eq!(result, Ok(Ok(1)));
+}
+
+#[test]
 fn record_tagged_event_rejects_too_many_tags() {
     let env = Env::default();
     let (contract_id, _, indexer) = setup(&env);
